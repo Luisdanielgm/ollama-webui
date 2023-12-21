@@ -2,6 +2,7 @@
 	import { settings } from '$lib/stores';
 	import toast from 'svelte-french-toast';
 	import Suggestions from './MessageInput/Suggestions.svelte';
+	import { onMount } from 'svelte';
 
 	export let submitPrompt: Function;
 	export let stopResponse: Function;
@@ -11,10 +12,11 @@
 
 	let filesInputElement;
 	let inputFiles;
+	let dragged = false;
 
 	export let files = [];
 
-	export let fileUploadEnabled = false;
+	export let fileUploadEnabled = true;
 	export let speechRecognitionEnabled = true;
 	export let speechRecognitionListening = false;
 
@@ -82,42 +84,108 @@
 			}
 		}
 	};
+
+	onMount(() => {
+		const dropZone = document.querySelector('body');
+
+		dropZone?.addEventListener('dragover', (e) => {
+			e.preventDefault();
+			dragged = true;
+		});
+
+		dropZone.addEventListener('drop', (e) => {
+			e.preventDefault();
+			console.log(e);
+
+			if (e.dataTransfer?.files) {
+				let reader = new FileReader();
+
+				reader.onload = (event) => {
+					files = [
+						...files,
+						{
+							type: 'image',
+							url: `${event.target.result}`
+						}
+					];
+				};
+
+				if (
+					e.dataTransfer?.files &&
+					e.dataTransfer?.files.length > 0 &&
+					['image/gif', 'image/jpeg', 'image/png'].includes(e.dataTransfer?.files[0]['type'])
+				) {
+					reader.readAsDataURL(e.dataTransfer?.files[0]);
+				} else {
+					toast.error(`Unsupported File Type '${e.dataTransfer?.files[0]['type']}'.`);
+				}
+			}
+
+			dragged = false;
+		});
+
+		dropZone?.addEventListener('dragleave', () => {
+			dragged = false;
+		});
+	});
 </script>
 
-<div class="fixed bottom-0 w-full bg-white dark:bg-gray-800">
-	<div class=" absolute right-0 left-0 bottom-0 mb-20">
-		<div class="max-w-3xl px-2.5 pt-2.5 -mb-0.5 mx-auto inset-x-0">
-			{#if messages.length == 0 && suggestionPrompts.length !== 0}
-				<Suggestions {suggestionPrompts} {submitPrompt} />
-			{/if}
+{#if dragged}
+	<div
+		class="fixed w-full h-full flex z-50 touch-none pointer-events-none"
+		id="dropzone"
+		role="region"
+		aria-label="Drag and Drop Container"
+	>
+		<div class="absolute rounded-xl w-full h-full backdrop-blur bg-gray-800/40 flex justify-center">
+			<div class="m-auto pt-64 flex flex-col justify-center">
+				<div class="max-w-md">
+					<div class="  text-center text-6xl mb-3">🏞️</div>
+					<div class="text-center dark:text-white text-2xl font-semibold z-50">Add Images</div>
 
-			{#if autoScroll === false && messages.length > 0}
-				<div class=" flex justify-center mb-4">
-					<button
-						class=" bg-white border border-gray-100 dark:border-none dark:bg-white/20 p-1.5 rounded-full"
-						on:click={() => {
-							autoScroll = true;
-							window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
-						}}
-					>
-						<svg
-							xmlns="http://www.w3.org/2000/svg"
-							viewBox="0 0 20 20"
-							fill="currentColor"
-							class="w-5 h-5"
-						>
-							<path
-								fill-rule="evenodd"
-								d="M10 3a.75.75 0 01.75.75v10.638l3.96-4.158a.75.75 0 111.08 1.04l-5.25 5.5a.75.75 0 01-1.08 0l-5.25-5.5a.75.75 0 111.08-1.04l3.96 4.158V3.75A.75.75 0 0110 3z"
-								clip-rule="evenodd"
-							/>
-						</svg>
-					</button>
+					<div class=" mt-2 text-center text-sm dark:text-gray-200 w-full">
+						Drop any images here to add to the conversation
+					</div>
 				</div>
-			{/if}
+			</div>
 		</div>
 	</div>
-	<div>
+{/if}
+
+<div class="fixed bottom-0 w-full">
+	<div class="px-2.5 pt-2.5 -mb-0.5 mx-auto inset-x-0 bg-transparent flex justify-center">
+		{#if messages.length == 0 && suggestionPrompts.length !== 0}
+			<div class="max-w-3xl">
+				<Suggestions {suggestionPrompts} {submitPrompt} />
+			</div>
+		{/if}
+
+		{#if autoScroll === false && messages.length > 0}
+			<div class=" flex justify-center mb-4">
+				<button
+					class=" bg-white border border-gray-100 dark:border-none dark:bg-white/20 p-1.5 rounded-full"
+					on:click={() => {
+						autoScroll = true;
+						window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+					}}
+				>
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						viewBox="0 0 20 20"
+						fill="currentColor"
+						class="w-5 h-5"
+					>
+						<path
+							fill-rule="evenodd"
+							d="M10 3a.75.75 0 01.75.75v10.638l3.96-4.158a.75.75 0 111.08 1.04l-5.25 5.5a.75.75 0 01-1.08 0l-5.25-5.5a.75.75 0 111.08-1.04l3.96 4.158V3.75A.75.75 0 0110 3z"
+							clip-rule="evenodd"
+						/>
+					</svg>
+				</button>
+			</div>
+		{/if}
+	</div>
+	<div class="bg-white dark:bg-gray-800">
 		<div class="max-w-3xl px-2.5 -mb-0.5 mx-auto inset-x-0">
 			<div class="bg-gradient-to-t from-white dark:from-gray-800 from-40% pb-2">
 				<input
@@ -136,6 +204,7 @@
 								}
 							];
 							inputFiles = null;
+							filesInputElement.value = '';
 						};
 
 						if (
@@ -160,7 +229,7 @@
 						<div class="ml-2 mt-2 mb-1 flex space-x-2">
 							{#each files as file, fileIdx}
 								<div class=" relative group">
-									<img src={file.url} alt="input" class=" h-16 w-16 rounded-xl bg-cover" />
+									<img src={file.url} alt="input" class=" h-16 w-16 rounded-xl object-cover" />
 
 									<div class=" absolute -top-1 -right-1">
 										<button
@@ -233,6 +302,30 @@
 							on:input={(e) => {
 								e.target.style.height = '';
 								e.target.style.height = Math.min(e.target.scrollHeight, 200) + 'px';
+							}}
+							on:paste={(e) => {
+								const clipboardData = e.clipboardData || window.clipboardData;
+
+								if (clipboardData && clipboardData.items) {
+									for (const item of clipboardData.items) {
+										if (item.type.indexOf('image') !== -1) {
+											const blob = item.getAsFile();
+											const reader = new FileReader();
+
+											reader.onload = function (e) {
+												files = [
+													...files,
+													{
+														type: 'image',
+														url: `${e.target.result}`
+													}
+												];
+											};
+
+											reader.readAsDataURL(blob);
+										}
+									}
+								}
 							}}
 						/>
 
